@@ -6,7 +6,7 @@ Persists one LogEntry per request (info for 2xx/3xx, warning for 4xx, error for
 
 import logging
 
-from domain.entities.log_entry import AuditContext, LogEntry, LogType
+from domain.entities.log_entry import LogEntry, LogType
 from domain.utils import utcnow
 
 from infrastructure.repositories.django_log_repository import DjangoLogRepository
@@ -27,7 +27,9 @@ class RequestLoggingMiddleware:
         try:
             self._log_request(request, response)
         except Exception:  # noqa: BLE001 - logging must not break the request
-            logger.exception("failed to log request %s %s", request.method, request.path)
+            logger.exception(
+                "failed to log request %s %s", request.method, request.path
+            )
         return response
 
     def _log_request(self, request, response) -> None:

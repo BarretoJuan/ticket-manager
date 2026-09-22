@@ -17,7 +17,9 @@ class DjangoUserRepository(UserRepository):
         return user_orm_to_domain(row)
 
     def get_by_email(self, email: str) -> User | None:
-        row = UserORM.objects.filter(email__iexact=email, deleted_at__isnull=True).first()
+        row = UserORM.objects.filter(
+            email__iexact=email, deleted_at__isnull=True
+        ).first()
         return user_orm_to_domain(row) if row else None
 
     def get_by_id(self, user_id: UUID) -> User | None:
@@ -25,7 +27,9 @@ class DjangoUserRepository(UserRepository):
         return user_orm_to_domain(row) if row else None
 
     def email_exists(self, email: str) -> bool:
-        return UserORM.objects.filter(email__iexact=email, deleted_at__isnull=True).exists()
+        return UserORM.objects.filter(
+            email__iexact=email, deleted_at__isnull=True
+        ).exists()
 
     def update(self, user: User) -> User:
         UserORM.objects.filter(pk=user.id).update(**user_domain_to_orm(user))

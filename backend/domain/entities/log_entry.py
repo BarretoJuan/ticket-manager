@@ -1,6 +1,6 @@
 """Log entry entity: audit/log records persisted to the LOGS table."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from uuid import UUID

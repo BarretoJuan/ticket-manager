@@ -95,8 +95,13 @@ class EventValidationTests(unittest.TestCase):
 class BookingValidationTests(unittest.TestCase):
     def test_quantity_between_1_and_5(self):
         valid = Booking(
-            id=uuid4(), created_at=utcnow(), updated_at=utcnow(), deleted_at=None,
-            event_id=uuid4(), user_id=uuid4(), ticket_quantity=3,
+            id=uuid4(),
+            created_at=utcnow(),
+            updated_at=utcnow(),
+            deleted_at=None,
+            event_id=uuid4(),
+            user_id=uuid4(),
+            ticket_quantity=3,
         )
         valid.validate()
 
@@ -104,16 +109,26 @@ class BookingValidationTests(unittest.TestCase):
         for q in (0, 6):
             with self.subTest(q=q), self.assertRaises(InvalidTicketQuantityError):
                 Booking(
-                    id=uuid4(), created_at=utcnow(), updated_at=utcnow(), deleted_at=None,
-                    event_id=uuid4(), user_id=uuid4(), ticket_quantity=q,
+                    id=uuid4(),
+                    created_at=utcnow(),
+                    updated_at=utcnow(),
+                    deleted_at=None,
+                    event_id=uuid4(),
+                    user_id=uuid4(),
+                    ticket_quantity=q,
                 ).validate()
 
 
 class UserValidationTests(unittest.TestCase):
     def make_user(self, **overrides):
         defaults = dict(
-            id=uuid4(), created_at=utcnow(), updated_at=utcnow(), deleted_at=None,
-            email="user@example.com", last_login_at=None, role=Role.USER,
+            id=uuid4(),
+            created_at=utcnow(),
+            updated_at=utcnow(),
+            deleted_at=None,
+            email="user@example.com",
+            last_login_at=None,
+            role=Role.USER,
             password_hash="hash",
         )
         defaults.update(overrides)
@@ -138,15 +153,21 @@ class UserValidationTests(unittest.TestCase):
 class LogEntryValidationTests(unittest.TestCase):
     def test_valid(self):
         LogEntry(
-            id=uuid4(), created_at=utcnow(), type=LogType.INFO,
-            name="test", content="hello",
+            id=uuid4(),
+            created_at=utcnow(),
+            type=LogType.INFO,
+            name="test",
+            content="hello",
         ).validate()
 
     def test_invalid_type(self):
         with self.assertRaises(LogValidationError):
             LogEntry(
-                id=uuid4(), created_at=utcnow(), type="debug",
-                name="test", content="hello",
+                id=uuid4(),
+                created_at=utcnow(),
+                type="debug",
+                name="test",
+                content="hello",
             ).validate()
 
 

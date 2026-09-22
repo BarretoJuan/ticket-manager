@@ -11,83 +11,168 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='UserORM',
+            name="UserORM",
             fields=[
-                ('password', models.CharField(max_length=128, verbose_name='password')),
-                ('last_login', models.DateTimeField(blank=True, null=True, verbose_name='last login')),
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('email', models.EmailField(max_length=254, unique=True)),
-                ('role', models.CharField(choices=[('USER', 'User'), ('ADMIN', 'Admin')], default='USER', max_length=16)),
-                ('last_login_at', models.DateTimeField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('deleted_at', models.DateTimeField(blank=True, null=True)),
+                ("password", models.CharField(max_length=128, verbose_name="password")),
+                (
+                    "last_login",
+                    models.DateTimeField(
+                        blank=True, null=True, verbose_name="last login"
+                    ),
+                ),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("email", models.EmailField(max_length=254, unique=True)),
+                (
+                    "role",
+                    models.CharField(
+                        choices=[("USER", "User"), ("ADMIN", "Admin")],
+                        default="USER",
+                        max_length=16,
+                    ),
+                ),
+                ("last_login_at", models.DateTimeField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("deleted_at", models.DateTimeField(blank=True, null=True)),
             ],
             options={
-                'db_table': 'users',
+                "db_table": "users",
             },
             managers=[
-                ('objects', infrastructure.orm.models.UserManager()),
+                ("objects", infrastructure.orm.models.UserManager()),
             ],
         ),
         migrations.CreateModel(
-            name='EventORM',
+            name="EventORM",
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('name', models.CharField(max_length=100)),
-                ('code', models.CharField(max_length=20, unique=True)),
-                ('date', models.DateTimeField()),
-                ('total_capacity', models.PositiveIntegerField()),
-                ('available_tickets', models.PositiveIntegerField()),
-                ('ticket_price', models.DecimalField(decimal_places=2, max_digits=12)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('deleted_at', models.DateTimeField(blank=True, null=True)),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("name", models.CharField(max_length=100)),
+                ("code", models.CharField(max_length=20, unique=True)),
+                ("date", models.DateTimeField()),
+                ("total_capacity", models.PositiveIntegerField()),
+                ("available_tickets", models.PositiveIntegerField()),
+                ("ticket_price", models.DecimalField(decimal_places=2, max_digits=12)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("deleted_at", models.DateTimeField(blank=True, null=True)),
             ],
             options={
-                'db_table': 'events',
-                'ordering': ['date'],
+                "db_table": "events",
+                "ordering": ["date"],
             },
         ),
         migrations.CreateModel(
-            name='BookingORM',
+            name="BookingORM",
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('ticket_quantity', models.PositiveSmallIntegerField()),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('deleted_at', models.DateTimeField(blank=True, null=True)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='bookings', to=settings.AUTH_USER_MODEL)),
-                ('event', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='bookings', to='ticketing.eventorm')),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("ticket_quantity", models.PositiveSmallIntegerField()),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("deleted_at", models.DateTimeField(blank=True, null=True)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="bookings",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "event",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="bookings",
+                        to="ticketing.eventorm",
+                    ),
+                ),
             ],
             options={
-                'db_table': 'bookings',
+                "db_table": "bookings",
             },
         ),
         migrations.CreateModel(
-            name='LogORM',
+            name="LogORM",
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('ip_address', models.TextField(blank=True, null=True)),
-                ('user_agent', models.TextField(blank=True, null=True)),
-                ('endpoint', models.TextField(blank=True, null=True)),
-                ('http_method', models.CharField(blank=True, max_length=10, null=True)),
-                ('status_code', models.CharField(blank=True, max_length=10, null=True)),
-                ('stack_trace', models.TextField(blank=True, null=True)),
-                ('type', models.CharField(choices=[('info', 'Info'), ('warning', 'Warning'), ('error', 'Error')], max_length=10)),
-                ('name', models.CharField(max_length=255)),
-                ('content', models.TextField()),
-                ('event', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='logs', to='ticketing.eventorm')),
-                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='logs', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("ip_address", models.TextField(blank=True, null=True)),
+                ("user_agent", models.TextField(blank=True, null=True)),
+                ("endpoint", models.TextField(blank=True, null=True)),
+                ("http_method", models.CharField(blank=True, max_length=10, null=True)),
+                ("status_code", models.CharField(blank=True, max_length=10, null=True)),
+                ("stack_trace", models.TextField(blank=True, null=True)),
+                (
+                    "type",
+                    models.CharField(
+                        choices=[
+                            ("info", "Info"),
+                            ("warning", "Warning"),
+                            ("error", "Error"),
+                        ],
+                        max_length=10,
+                    ),
+                ),
+                ("name", models.CharField(max_length=255)),
+                ("content", models.TextField()),
+                (
+                    "event",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="logs",
+                        to="ticketing.eventorm",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="logs",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'db_table': 'logs',
+                "db_table": "logs",
             },
         ),
     ]

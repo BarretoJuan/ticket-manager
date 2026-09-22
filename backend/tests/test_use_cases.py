@@ -20,7 +20,7 @@ from application.use_cases.update_event import UpdateEvent
 
 from domain.entities.booking import Booking
 from domain.entities.event import Event
-from domain.entities.user import Role, User
+from domain.entities.user import Role
 from domain.exceptions import (
     EmailAlreadyExistsError,
     EventCodeAlreadyExistsError,
@@ -59,7 +59,11 @@ class FakeEventRepository(EventRepository):
 
     def list(self, *, code=None):
         return sorted(
-            (e for e in self.events.values() if e.deleted_at is None and (code is None or e.code == code)),
+            (
+                e
+                for e in self.events.values()
+                if e.deleted_at is None and (code is None or e.code == code)
+            ),
             key=lambda e: e.date,
         )
 
@@ -85,8 +89,13 @@ class FakeBookingRepository(BookingRepository):
         updated = event.with_booking(quantity)
         self.events.events[event_id] = updated
         booking = Booking(
-            id=uuid4(), created_at=utcnow(), updated_at=utcnow(), deleted_at=None,
-            event_id=event_id, user_id=user_id, ticket_quantity=quantity,
+            id=uuid4(),
+            created_at=utcnow(),
+            updated_at=utcnow(),
+            deleted_at=None,
+            event_id=event_id,
+            user_id=user_id,
+            ticket_quantity=quantity,
         )
         self.bookings.append(booking)
         return booking
@@ -218,6 +227,7 @@ class EventUseCaseTests(unittest.TestCase):
 
     def test_create_event_non_future_date_rejected(self):
         from domain.exceptions import EventNotInFutureError
+
         with self.assertRaises(EventNotInFutureError):
             self.create.execute(**new_event_input(date=utcnow() - timedelta(days=1)))
 
@@ -229,6 +239,7 @@ class EventUseCaseTests(unittest.TestCase):
 
     def test_update_event_cannot_shrink_below_sold(self):
         from domain.exceptions import EventCapacityError
+
         event = self.create.execute(**new_event_input(total_capacity=10))
         # skip the atomic repo in this fake: reduce manually
         event = self.events.save(event.with_booking(4))
@@ -247,7 +258,7 @@ class EventUseCaseTests(unittest.TestCase):
 
     def test_list_excludes_deleted(self):
         a = self.create.execute(**new_event_input(code="EVT-2026-ES"))
-        b = self.create.execute(**new_event_input(code="EVT-2026-MX"))
+        self.create.execute(**new_event_input(code="EVT-2026-MX"))
         self.delete.execute(event_id=a.id)
         codes = [e.code for e in self.list.execute()]
         self.assertEqual(codes, ["EVT-2026-MX"])
@@ -265,9 +276,16 @@ class BookTicketTests(unittest.TestCase):
         self.user_id = uuid4()
         self.event = self.events.create(
             Event(
-                id=uuid4(), created_at=utcnow(), updated_at=utcnow(), deleted_at=None,
-                name="Concert", code="EVT-2026-US", date=future_date(),
-                total_capacity=5, available_tickets=5, ticket_price=Decimal("10.00"),
+                id=uuid4(),
+                created_at=utcnow(),
+                updated_at=utcnow(),
+                deleted_at=None,
+                name="Concert",
+                code="EVT-2026-US",
+                date=future_date(),
+                total_capacity=5,
+                available_tickets=5,
+                ticket_price=Decimal("10.00"),
             )
         )
 
@@ -277,9 +295,7 @@ class BookTicketTests(unittest.TestCase):
         )
         self.assertEqual(booking.ticket_quantity, 2)
         self.assertEqual(self.events.get_by_id(self.event.id).available_tickets, 3)
-        self.assertEqual(
-            [e.name for e in self.logs.entries], ["booking.created"]
-        )
+        self.assertEqual([e.name for e in self.logs.entries], ["booking.created"])
 
     def test_booking_exceeding_capacity_rejected(self):
         self.book.execute(event_id=self.event.id, user_id=self.user_id, quantity=5)
@@ -293,7 +309,9 @@ class BookTicketTests(unittest.TestCase):
     def test_booking_quantity_out_of_range(self):
         for q in (0, 6):
             with self.subTest(q=q), self.assertRaises(InvalidTicketQuantityError):
-                self.book.execute(event_id=self.event.id, user_id=self.user_id, quantity=q)
+                self.book.execute(
+                    event_id=self.event.id, user_id=self.user_id, quantity=q
+                )
 
     def test_booking_missing_event(self):
         with self.assertRaises(EventNotFoundError):

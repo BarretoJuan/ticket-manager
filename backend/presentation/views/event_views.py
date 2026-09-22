@@ -1,9 +1,9 @@
 """Event controllers.
 
-* ``EventCollectionView``  -> GET  /api/v1/events (list, authenticated)
-                              POST /api/v1/events (create, admins only)
-* ``EventDetailView``      -> PATCH  /api/v1/events/{event_id} (edit, admins only)
-                              DELETE /api/v1/events/{event_id} (soft delete, admins only)
+* ``EventCollectionView`` -> GET  /api/v1/events (list, authenticated)
+* ``EventCollectionView`` -> POST /api/v1/events (create, admins only)
+* ``EventDetailView`` -> PATCH  /api/v1/events/{event_id} (edit, admins only)
+* ``EventDetailView`` -> DELETE /api/v1/events/{event_id} (soft delete, admins only)
 """
 
 from rest_framework import permissions, status

@@ -40,6 +40,7 @@ Base URL: `http://localhost:8000/api/v1`
 cd backend
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt  # optional: black + flake8
 cp .env.example .env            # then edit values if needed
 ```
 
@@ -113,6 +114,26 @@ python manage.py test tests -v 2
 - `test_use_cases.py` — use cases against in-memory fake repositories (no Django).
 - `test_api.py` — full HTTP API via DRF `APIClient` (register/login/authz/CRUD/booking/health).
 - `test_booking_race.py` — **PostgreSQL concurrency test** (needs a running Postgres; uses `TransactionTestCase`).
+
+---
+
+## Code style & linting
+
+The codebase is formatted with [Black](https://black.readthedocs.io/) and linted with
+[flake8](https://flake8.pycqa.org/). Config lives in `pyproject.toml` (Black: 88-char line
+limit, Python 3.14) and `.flake8` (flake8: same line limit, ignores `E203`/`W503`). Both
+must run clean from the `backend/` directory:
+
+```bash
+pip install -r requirements-dev.txt  # once, if not already installed
+
+black .        # format the codebase
+flake8         # lint
+
+# CI-style checks
+black --check .
+flake8
+```
 
 ---
 

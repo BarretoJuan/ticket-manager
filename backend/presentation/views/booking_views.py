@@ -18,7 +18,9 @@ from presentation.utils import build_audit_context
 @extend_schema(
     tags=["bookings"],
     parameters=[
-        OpenApiParameter("event_id", str, OpenApiParameter.PATH, description="Event UUID")
+        OpenApiParameter(
+            "event_id", str, OpenApiParameter.PATH, description="Event UUID"
+        )
     ],
     request=BookingRequestDTO,
     responses={
@@ -49,4 +51,6 @@ class BookingCreateView(APIView):
             )
         except domain_exceptions.DomainError as exc:
             raise to_http_exception(exc)
-        return Response(BookingResponseDTO(booking).data, status=status.HTTP_201_CREATED)
+        return Response(
+            BookingResponseDTO(booking).data, status=status.HTTP_201_CREATED
+        )

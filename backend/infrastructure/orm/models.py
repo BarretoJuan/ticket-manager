@@ -47,7 +47,9 @@ class UserORM(AbstractBaseUser):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
-    role = models.CharField(max_length=16, choices=UserRole.choices, default=UserRole.USER)
+    role = models.CharField(
+        max_length=16, choices=UserRole.choices, default=UserRole.USER
+    )
     is_active = models.BooleanField(default=True)
     last_login_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -91,9 +93,7 @@ class BookingORM(models.Model):
     event = models.ForeignKey(
         EventORM, on_delete=models.PROTECT, related_name="bookings"
     )
-    user = models.ForeignKey(
-        UserORM, on_delete=models.PROTECT, related_name="bookings"
-    )
+    user = models.ForeignKey(UserORM, on_delete=models.PROTECT, related_name="bookings")
     ticket_quantity = models.PositiveSmallIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -48,7 +48,9 @@ class BookingRaceTests(TransactionTestCase):
     def test_concurrent_bookings_never_oversell(self):
         capacity = 5
         event = self._seed_event(capacity)
-        user = UserORM.objects.create_user(email="racer@example.com", password="pass12345")
+        user = UserORM.objects.create_user(
+            email="racer@example.com", password="pass12345"
+        )
 
         event_repo = DjangoEventRepository()
         booking_repo = DjangoBookingRepository()
@@ -90,7 +92,9 @@ class BookingRaceTests(TransactionTestCase):
 
     def test_single_booking_many_tickets_respects_capacity(self):
         event = self._seed_event(4)
-        user = UserORM.objects.create_user(email="multi@example.com", password="pass12345")
+        user = UserORM.objects.create_user(
+            email="multi@example.com", password="pass12345"
+        )
 
         event_repo = DjangoEventRepository()
         booking_repo = DjangoBookingRepository()

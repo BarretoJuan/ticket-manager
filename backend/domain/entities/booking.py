@@ -21,7 +21,9 @@ class Booking:
     ticket_quantity: int
 
     def validate(self) -> None:
-        if not (MIN_TICKETS_PER_BOOKING <= self.ticket_quantity <= MAX_TICKETS_PER_BOOKING):
+        if not (
+            MIN_TICKETS_PER_BOOKING <= self.ticket_quantity <= MAX_TICKETS_PER_BOOKING
+        ):
             raise InvalidTicketQuantityError(
                 f"ticket_quantity must be between {MIN_TICKETS_PER_BOOKING} and "
                 f"{MAX_TICKETS_PER_BOOKING}, got {self.ticket_quantity}"

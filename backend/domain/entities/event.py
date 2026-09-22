@@ -47,7 +47,8 @@ class Event:
         now = now or utcnow()
         if not (EVENT_NAME_MIN <= len(self.name) <= EVENT_NAME_MAX):
             raise EventNameLengthError(
-                f"event name must be between {EVENT_NAME_MIN} and {EVENT_NAME_MAX} chars"
+                f"event name must be between {EVENT_NAME_MIN} "
+                f"and {EVENT_NAME_MAX} chars"
             )
         if not EVENT_CODE_RE.match(self.code):
             raise EventCodeFormatError(
@@ -78,7 +79,8 @@ class Event:
         """
         if not self.can_book(quantity):
             raise InsufficientTicketsError(
-                f"not enough available tickets (available={self.available_tickets}, requested={quantity})"
+                f"not enough available tickets "
+                f"(available={self.available_tickets}, requested={quantity})"
             )
         return replace(
             self,

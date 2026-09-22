@@ -4,15 +4,19 @@ from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from infrastructure.orm.models import EventORM, UserORM
+from infrastructure.orm.models import UserORM
 
 PASSWORD = "Test12345!"
 
 
 def john_token(client, email="john@example.com"):
-    resp = client.post("/api/v1/register", {"email": email, "password": PASSWORD}, format="json")
+    resp = client.post(
+        "/api/v1/register", {"email": email, "password": PASSWORD}, format="json"
+    )
     assert resp.status_code == 201, resp.content
-    resp = client.post("/api/v1/login", {"email": email, "password": PASSWORD}, format="json")
+    resp = client.post(
+        "/api/v1/login", {"email": email, "password": PASSWORD}, format="json"
+    )
     assert resp.status_code == 200, resp.content
     return resp.data["access"]
 
@@ -130,15 +134,20 @@ class EventAndBookingApiTests(TestCase):
         anon = APIClient()
         self.assertEqual(anon.get("/api/v1/events").status_code, 401)
         self.assertEqual(
-            anon.post("/api/v1/events", self.event_payload, format="json").status_code, 401
+            anon.post("/api/v1/events", self.event_payload, format="json").status_code,
+            401,
         )
 
     def test_only_admin_can_create_event(self):
-        resp = self.user_client.post("/api/v1/events", self.event_payload, format="json")
+        resp = self.user_client.post(
+            "/api/v1/events", self.event_payload, format="json"
+        )
         self.assertEqual(resp.status_code, 403)
 
     def test_admin_creates_event_with_available_equals_capacity(self):
-        resp = self.admin_client.post("/api/v1/events", self.event_payload, format="json")
+        resp = self.admin_client.post(
+            "/api/v1/events", self.event_payload, format="json"
+        )
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data["total_capacity"], 5)
         self.assertEqual(resp.data["available_tickets"], 5)

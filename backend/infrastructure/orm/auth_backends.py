@@ -1,4 +1,5 @@
-"""Authentication glue: custom backend + JWT authentication that honours soft deletion."""
+"""Authentication glue: custom backend + JWT authentication that honours soft
+deletion."""
 
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -9,14 +10,17 @@ from infrastructure.orm.models import UserORM
 
 
 class UserBackend:
-    """Django auth backend: authenticate by email + password, ignore soft-deleted users."""
+    """Django auth backend: authenticate by email + password, ignore soft-deleted
+    users."""
 
     def authenticate(self, request, username=None, password=None, **kwargs):
         email = username or kwargs.get("email")
         if not email or not password:
             return None
         try:
-            user = UserORM.objects.get(email__iexact=email.strip(), deleted_at__isnull=True)
+            user = UserORM.objects.get(
+                email__iexact=email.strip(), deleted_at__isnull=True
+            )
         except UserORM.DoesNotExist:
             return None
         if user.check_password(password) and user.is_active:

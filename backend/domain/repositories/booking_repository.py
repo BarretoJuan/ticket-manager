@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from domain.entities.booking import Booking
-from domain.exceptions import InsufficientTicketsError
 
 
 class BookingRepository(ABC):

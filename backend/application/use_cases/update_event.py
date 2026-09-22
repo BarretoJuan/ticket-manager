@@ -65,20 +65,30 @@ class UpdateEvent:
             date=ensure_utc(date) if date is not None else event.date,
             total_capacity=new_total_capacity,
             available_tickets=new_available_tickets,
-            ticket_price=ticket_price if ticket_price is not None else event.ticket_price,
+            ticket_price=(
+                ticket_price if ticket_price is not None else event.ticket_price
+            ),
             updated_at=now,
         )
         updated.validate(now=now)  # business rules live in the domain
 
-        if code is not None and code.upper().strip() != event.code and self.event_repository.code_exists(code.upper().strip()):
-            raise EventCodeAlreadyExistsError(f"event code {code.upper().strip()} already exists")
+        if (
+            code is not None
+            and code.upper().strip() != event.code
+            and self.event_repository.code_exists(code.upper().strip())
+        ):
+            raise EventCodeAlreadyExistsError(
+                f"event code {code.upper().strip()} already exists"
+            )
 
         saved = self.event_repository.save(updated)
         record_log(
             self.log_repository,
             log_type=LogType.INFO,
             name="event.updated",
-            content=f"Event {saved.code} updated (name={saved.name}, date={saved.date})",
+            content=(
+                f"Event {saved.code} updated " f"(name={saved.name}, date={saved.date})"
+            ),
             event_id=saved.id,
             audit=audit,
         )

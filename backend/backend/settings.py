@@ -19,7 +19,12 @@ def env(key: str, default: str | None = None) -> str | None:
 
 
 def env_bool(key: str, default: bool = False) -> bool:
-    return os.environ.get(key, str(default)).strip().lower() in ("1", "true", "yes", "on")
+    return os.environ.get(key, str(default)).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -198,7 +203,11 @@ LOGGING = {
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
     "loggers": {
-        "django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False},
+        "django": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "django.request": {
             "handlers": ["console", "file"],
             "level": "WARNING",

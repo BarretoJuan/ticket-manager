@@ -22,7 +22,9 @@ class InvalidCredentials(drf_exceptions.APIException):
     default_code = "invalid_credentials"
 
 
-def to_http_exception(exc: domain_exceptions.DomainError) -> drf_exceptions.APIException:
+def to_http_exception(
+    exc: domain_exceptions.DomainError,
+) -> drf_exceptions.APIException:
     """Translate a domain error into the corresponding DRF HTTP exception."""
     if isinstance(exc, domain_exceptions.NotFoundError):
         return drf_exceptions.NotFound(detail=exc.message)

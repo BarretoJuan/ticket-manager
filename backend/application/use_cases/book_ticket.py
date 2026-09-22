@@ -56,8 +56,8 @@ class BookTicket:
         try:
             if not event.can_book(quantity):
                 raise InsufficientTicketsError(
-                    f"not enough available tickets (available={event.available_tickets}, "
-                    f"requested={quantity})"
+                    f"not enough available tickets "
+                    f"(available={event.available_tickets}, requested={quantity})"
                 )
             # Atomic: row lock + authoritative re-check + decrement + insert.
             created = self.booking_repository.create_booking_atomic(
@@ -70,7 +70,10 @@ class BookTicket:
                 self.log_repository,
                 log_type=LogType.WARNING,
                 name="booking.rejected",
-                content=f"Booking rejected: event {event_id} lacks capacity for {quantity} tickets",
+                content=(
+                    f"Booking rejected: event {event_id} lacks capacity "
+                    f"for {quantity} tickets"
+                ),
                 user_id=user_id,
                 event_id=event_id,
                 audit=audit,
@@ -81,7 +84,10 @@ class BookTicket:
             self.log_repository,
             log_type=LogType.INFO,
             name="booking.created",
-            content=f"Booking created: {created.ticket_quantity} ticket(s) for event {event_id}",
+            content=(
+                f"Booking created: {created.ticket_quantity} ticket(s) "
+                f"for event {event_id}"
+            ),
             user_id=user_id,
             event_id=event_id,
             audit=audit,

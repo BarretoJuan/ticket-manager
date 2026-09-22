@@ -49,7 +49,9 @@ def record_log(
     entry.validate()
 
     level = _LOG_LEVELS.get(log_type, logging.INFO)
-    logger.log(level, "%s user_id=%s event_id=%s :: %s", name, user_id, event_id, content)
+    logger.log(
+        level, "%s user_id=%s event_id=%s :: %s", name, user_id, event_id, content
+    )
 
     if log_repository is not None:
         try:

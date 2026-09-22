@@ -34,4 +34,9 @@ class HealthView(APIView):
                 "timestamp": utcnow(),
             }
         ).data
-        return Response(body, status=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response(
+            body,
+            status=(
+                status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+            ),
+        )
