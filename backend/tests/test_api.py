@@ -1,5 +1,6 @@
 """End-to-end API tests (APIClient against the real stack + PostgreSQL)."""
 
+from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -18,6 +19,7 @@ def john_token(client, email="john@example.com"):
 
 class AuthApiTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.client = APIClient()
 
     def test_register_login_flow(self):
@@ -64,9 +66,41 @@ class AuthApiTests(TestCase):
         )
         self.assertEqual(resp.status_code, 409)
 
+    def test_register_rate_limited(self):
+        # 10 registers allowed per client IP, 11th is throttled with 429.
+        statuses = []
+        for i in range(11):
+            resp = self.client.post(
+                "/api/v1/register",
+                {"email": f"limited{i}@example.com", "password": PASSWORD},
+                format="json",
+            )
+            statuses.append(resp.status_code)
+        self.assertEqual(statuses[:10], [201] * 10)
+        self.assertEqual(statuses[10], 429)
+
+    def test_login_rate_limited(self):
+        self.client.post(
+            "/api/v1/register",
+            {"email": "loginlimited@example.com", "password": PASSWORD},
+            format="json",
+        )
+        # 10 logins allowed per client IP, 11th is throttled with 429.
+        statuses = []
+        for _ in range(11):
+            resp = self.client.post(
+                "/api/v1/login",
+                {"email": "loginlimited@example.com", "password": PASSWORD},
+                format="json",
+            )
+            statuses.append(resp.status_code)
+        self.assertEqual(statuses[:10], [200] * 10)
+        self.assertEqual(statuses[10], 429)
+
 
 class EventAndBookingApiTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.user_client = APIClient()
         self.user_token = john_token(self.user_client)
         self.user_client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")

@@ -98,7 +98,9 @@ Compose variables can be overridden either in `.env` (e.g. `POSTGRES_PASSWORD=..
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | `ticket_manager / ticket_user / ticket_password / localhost / 5432` | PostgreSQL connection |
 | `JWT_ACCESS_TOKEN_MINUTES` | `60` | Access token lifetime |
 | `JWT_REFRESH_TOKEN_DAYS` | `1` | Refresh token lifetime |
-| `BOOK_THROTTLE_RATE` | `10/min` | Rate limit for `POST /events/{id}/book` |
+| `BOOK_THROTTLE_RATE` | `10/min` | Rate limit for `POST /events/{id}/book` (per user) |
+| `LOGIN_THROTTLE_RATE` | `10/min` | Rate limit for `POST /login` (per client IP) |
+| `REGISTER_THROTTLE_RATE` | `10/min` | Rate limit for `POST /register` (per client IP) |
 
 
 ## Tests

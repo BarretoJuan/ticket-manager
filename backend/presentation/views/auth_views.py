@@ -2,6 +2,7 @@
 
 from rest_framework import permissions, status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema
@@ -25,11 +26,14 @@ from presentation.serializers.common_dtos import ErrorResponseDTO
     responses={
         200: TokenResponseDTO,
         401: ErrorResponseDTO,
+        429: ErrorResponseDTO,
     },
 )
 class LoginView(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
     def post(self, request):
         dto = LoginRequestDTO(data=request.data)
@@ -58,11 +62,14 @@ class LoginView(APIView):
         201: UserResponseDTO,
         400: ErrorResponseDTO,
         409: ErrorResponseDTO,
+        429: ErrorResponseDTO,
     },
 )
 class RegisterView(APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "register"
 
     def post(self, request):
         dto = RegisterRequestDTO(data=request.data)

@@ -134,6 +134,8 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "book": env("BOOK_THROTTLE_RATE", "10/min"),
+        "login": env("LOGIN_THROTTLE_RATE", "10/min"),
+        "register": env("REGISTER_THROTTLE_RATE", "10/min"),
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_RENDERER_CLASSES": [
