@@ -1,0 +1,42 @@
+services:
+  db:
+    build: ./docker/postgres
+    container_name: ticket_manager_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ticket_manager}
+      POSTGRES_USER: ${POSTGRES_USER:-ticket_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ticket_password}
+    ports:
+      # Host port 5433 avoids clashing with a local PostgreSQL on 5432
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backend:
+    build: .
+    container_name: ticket_manager_backend
+    env_file:
+      - .env
+    environment:
+      # Point the backend at the compose database service
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-ticket_manager}
+      DB_USER: ${POSTGRES_USER:-ticket_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-ticket_password}
+      DEBUG: "True"
+      ALLOWED_HOSTS: "*"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+
+volumes:
+  pgdata:

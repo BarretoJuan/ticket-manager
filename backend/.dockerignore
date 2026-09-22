@@ -1,0 +1,12 @@
+venv/
+*.py[cod]
+__pycache__/
+.env
+logs/
+.git/
+.gitignore
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md
+tests/

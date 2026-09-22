@@ -1,0 +1,1 @@
+"""Domain entities: pure dataclasses carrying all business rules."""

@@ -1,0 +1,1 @@
+"""Repository ports (interfaces) implemented by the infrastructure layer."""

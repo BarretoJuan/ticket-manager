@@ -1,0 +1,1 @@
+"""Django project configuration package for the Ticket Manager backend."""

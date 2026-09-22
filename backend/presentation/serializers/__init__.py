@@ -1,0 +1,1 @@
+"""DTOs (DRF serializers). They validate the *shape* of the input only."""

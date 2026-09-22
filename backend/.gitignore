@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environment
+venv/
+.env
+
+# Django
+*.log
+logs/
+db.sqlite3
+media/
+staticfiles/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Env / secrets
+.env.*
+!.env.example
+
+# Postgres local dev (outside repo, keep commented as safety)
+.pgdata/
