@@ -54,11 +54,11 @@ psql -h localhost -p 5432 -U postgres -c \
 psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE ticket_manager OWNER ticket_user;"
 ```
 
-Then run migrations, seed an admin, and start the server:
+Then run migrations, seed the database, and start the server:
 
 ```bash
 python manage.py migrate
-python manage.py create_admin --email admin@example.com --password 'Admin12345!'
+python manage.py seed   # demo data: admin, users, events, bookings (idempotent)
 python manage.py runserver 0.0.0.0:8000
 ```
 
@@ -81,11 +81,29 @@ docker compose up --build
 ```
 
 - `db` — PostgreSQL 18 container, health-gated.
-- `backend` — runs `migrate` then `runserver` on port **8000**, with `DB_HOST=db` and credentials from
-  `.env`/compose defaults.
+- `backend` — runs `migrate`, `seed`, then `runserver` on port **8000**, with `DB_HOST=db` and
+  credentials from `.env`/compose defaults. Seeding is idempotent; disable it with
+  `SEED_ENABLED=false`.
 
 Compose variables can be overridden either in `.env` (e.g. `POSTGRES_PASSWORD=...`) or via the
 `POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD` environment defaults.
+
+---
+
+## Seeding
+
+`python manage.py seed` fills the database with demo data and is safe to re-run (existing
+rows are left untouched):
+
+- **1 admin** — `admin@example.com` / `Admin12345!` (reuse this to create an admin manually
+  without demo data: `python manage.py create_admin --email ... --password ...`).
+- **2 demo users** — `alice@example.com`, `bob@example.com` (password `Demo12345!`).
+- **4 upcoming events** — valid `EVT-<year>-XX` codes, future dates, varied capacity/price.
+- **A few bookings** — created only for events seeded in the same run, using the real
+  booking use case (respects capacity and the 1–5 tickets rule).
+
+All data goes through the application use cases, so domain validation, password hashing, and
+audit logging apply. Configuration is via `SEED_*` env vars (see below).
 
 ---
 
@@ -102,6 +120,10 @@ Compose variables can be overridden either in `.env` (e.g. `POSTGRES_PASSWORD=..
 | `BOOK_THROTTLE_RATE` | `10/min` | Rate limit for `POST /events/{id}/book` (per user) |
 | `LOGIN_THROTTLE_RATE` | `10/min` | Rate limit for `POST /login` (per client IP) |
 | `REGISTER_THROTTLE_RATE` | `10/min` | Rate limit for `POST /register` (per client IP) |
+| `SEED_ENABLED` | `true` | Seed demo data when `manage.py seed` runs (automatic on `docker compose up`) |
+| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `admin@example.com` / `Admin12345!` | Admin account created by seeding |
+| `SEED_DEMO_USERS` | `alice@example.com,bob@example.com` | Demo user accounts (comma-separated) |
+| `SEED_BOOKINGS` | `true` | Create a few bookings on freshly seeded events |
 
 
 ## Tests
@@ -114,6 +136,7 @@ python manage.py test tests -v 2
 - `test_use_cases.py` — use cases against in-memory fake repositories (no Django).
 - `test_api.py` — full HTTP API via DRF `APIClient` (register/login/authz/CRUD/booking/health).
 - `test_booking_race.py` — **PostgreSQL concurrency test** (needs a running Postgres; uses `TransactionTestCase`).
+- `test_seed.py` — `seed` command: creates demo data, is idempotent, honours `SEED_ENABLED`/`SEED_BOOKINGS`.
 
 ---
 
