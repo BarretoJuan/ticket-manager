@@ -1,10 +1,14 @@
 """End-to-end API tests (APIClient against the real stack + PostgreSQL)."""
 
+from datetime import timedelta
+from decimal import Decimal
+
 from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from infrastructure.orm.models import UserORM
+from domain.utils import utcnow
+from infrastructure.orm.models import EventORM, UserORM
 
 PASSWORD = "Test12345!"
 
@@ -183,7 +187,8 @@ class EventAndBookingApiTests(TestCase):
         self.assertEqual(resp.data["ticket_quantity"], 3)
 
         listed = self.user_client.get("/api/v1/events").data
-        self.assertEqual(listed[0]["available_tickets"], 2)
+        self.assertEqual(listed["count"], 1)
+        self.assertEqual(listed["results"][0]["available_tickets"], 2)
 
     def test_booking_quantity_limits(self):
         created = self.admin_client.post(
@@ -236,13 +241,140 @@ class EventAndBookingApiTests(TestCase):
         self.assertEqual(resp.status_code, 204)
 
         listed = self.user_client.get("/api/v1/events").data
-        self.assertEqual(listed, [])
+        self.assertEqual(listed["count"], 0)
+        self.assertEqual(listed["results"], [])
 
         # Booking a soft-deleted event -> 404
         resp = self.user_client.post(
             f"/api/v1/events/{event_id}/book", {"ticket_quantity": 1}, format="json"
         )
         self.assertEqual(resp.status_code, 404)
+
+    def test_list_events_paginated_by_20(self):
+        now = utcnow()
+        for i in range(25):
+            EventORM.objects.create(
+                name=f"Page Event {i:02d}",
+                code=f"EVT-2026-{chr(65 + i // 26)}{chr(65 + i % 26)}",
+                date=now + timedelta(days=i + 1),
+                total_capacity=100,
+                available_tickets=100,
+                ticket_price=Decimal("10.00"),
+            )
+
+        page1 = self.user_client.get("/api/v1/events").data
+        self.assertEqual(page1["count"], 25)
+        self.assertEqual(len(page1["results"]), 20)
+        self.assertIsNotNone(page1["next"])
+        self.assertIsNone(page1["previous"])
+        self.assertTrue(page1["next"].endswith("page=2"))
+
+        page2 = self.user_client.get("/api/v1/events", {"page": 2}).data
+        self.assertEqual(len(page2["results"]), 5)
+        self.assertIsNone(page2["next"])
+        self.assertIsNotNone(page2["previous"])
+        self.assertTrue(page2["previous"].endswith("page=1"))
+
+    def test_list_events_invalid_page_is_400(self):
+        self.assertEqual(
+            self.user_client.get("/api/v1/events", {"page": 0}).status_code, 400
+        )
+        self.assertEqual(
+            self.user_client.get("/api/v1/events", {"page": "abc"}).status_code, 400
+        )
+
+    def test_list_events_filters_by_name(self):
+        self.admin_client.post(
+            "/api/v1/events",
+            {**self.event_payload, "name": "Rock Festival", "code": "EVT-2027-RK"},
+            format="json",
+        )
+        self.admin_client.post(
+            "/api/v1/events",
+            {**self.event_payload, "name": "Jazz Night", "code": "EVT-2027-JZ"},
+            format="json",
+        )
+
+        resp = self.user_client.get("/api/v1/events", {"name": "rock"})
+        self.assertEqual(resp.data["count"], 1)
+        self.assertEqual(resp.data["results"][0]["name"], "Rock Festival")
+
+    def test_list_events_filters_by_date_range(self):
+        for code, date in [
+            ("EVT-2027-AA", "2027-06-10T09:00:00Z"),
+            ("EVT-2027-AB", "2027-06-20T09:00:00Z"),
+            ("EVT-2027-AC", "2027-07-01T09:00:00Z"),
+        ]:
+            resp = self.admin_client.post(
+                "/api/v1/events",
+                {**self.event_payload, "code": code, "date": date},
+                format="json",
+            )
+            self.assertEqual(resp.status_code, 201)
+
+        resp = self.user_client.get(
+            "/api/v1/events",
+            {"date_from": "2027-06-15", "date_to": "2027-06-30"},
+        )
+        codes = [e["code"] for e in resp.data["results"]]
+        self.assertEqual(codes, ["EVT-2027-AB"])
+
+        # Inverted range is rejected with 400.
+        resp = self.user_client.get(
+            "/api/v1/events",
+            {"date_from": "2027-12-01", "date_to": "2027-01-01"},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_list_events_filters_by_availability(self):
+        self.admin_client.post(
+            "/api/v1/events",
+            {**self.event_payload, "code": "EVT-2027-SO"},
+            format="json",
+        )
+        created = self.admin_client.post(
+            "/api/v1/events",
+            {**self.event_payload, "code": "EVT-2027-FU"},
+            format="json",
+        )
+        event_id = created.data["id"]
+        for _ in range(5):  # capacity 5 -> sell out
+            resp = self.user_client.post(
+                f"/api/v1/events/{event_id}/book",
+                {"ticket_quantity": 1},
+                format="json",
+            )
+            self.assertEqual(resp.status_code, 201)
+
+        avail = self.user_client.get(
+            "/api/v1/events", {"availability": "available"}
+        ).data
+        self.assertEqual(avail["count"], 1)
+        self.assertEqual(avail["results"][0]["code"], "EVT-2027-SO")
+
+        sold = self.user_client.get("/api/v1/events", {"availability": "sold_out"}).data
+        self.assertEqual(sold["count"], 1)
+        self.assertEqual(sold["results"][0]["code"], "EVT-2027-FU")
+
+        bad = self.user_client.get("/api/v1/events", {"availability": "nope"})
+        self.assertEqual(bad.status_code, 400)
+
+    def test_list_events_filters_combine_with_code(self):
+        self.admin_client.post(
+            "/api/v1/events",
+            {**self.event_payload, "name": "Tech One", "code": "EVT-2027-AA"},
+            format="json",
+        )
+        self.admin_client.post(
+            "/api/v1/events",
+            {**self.event_payload, "name": "Tech Two", "code": "EVT-2027-BB"},
+            format="json",
+        )
+        resp = self.user_client.get(
+            "/api/v1/events", {"code": "EVT-2027-AA", "name": "tech"}
+        )
+        self.assertEqual(resp.data["count"], 1)
+        self.assertEqual(resp.data["results"][0]["code"], "EVT-2027-AA")
 
 
 class HealthApiTests(TestCase):

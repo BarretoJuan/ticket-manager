@@ -35,6 +35,34 @@ backend/
 ## API
 Base URL: `http://localhost:8000/api/v1`
 
+### Events: `GET /api/v1/events`
+
+Lists upcoming (non-deleted) events ordered by date, **20 per page**.
+
+Query params (all optional, combinable):
+
+| Param | Values | Description |
+|---|---|---|
+| `page` | integer ≥ 1 | Page number (default 1) |
+| `code` | e.g. `EVT-2026-RO` | Exact event code |
+| `name` | string | Case-insensitive substring match on the event name |
+| `date_from` | `YYYY-MM-DD` | Events on/after this day (UTC, inclusive) |
+| `date_to` | `YYYY-MM-DD` | Events on/before this day (UTC, inclusive) |
+| `availability` | `available` \| `sold_out` | `available` = tickets remain, `sold_out` = none left |
+
+Example: `GET /api/v1/events?page=2&name=tech&date_from=2026-01-01&date_to=2026-12-31&availability=available`
+
+Paginated response envelope (`next`/`previous` repeat the current filters):
+
+```json
+{
+  "count": 25,
+  "next": "http://localhost:8000/api/v1/events?page=2",
+  "previous": null,
+  "results": [ { "id": "...", "name": "Tech Conference", "date": "2027-06-15T09:00:00Z", "...": "..." } ]
+}
+```
+
 ## Local development setup (macOS / Linux)
 ```bash
 cd backend

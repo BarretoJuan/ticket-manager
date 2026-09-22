@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from domain.entities.event import Event
-from domain.repositories.event_repository import EventRepository
+from domain.repositories.event_repository import EventPage, EventQuery, EventRepository
 
 from infrastructure.orm.models import EventORM
 from infrastructure.repositories.mappers import (
@@ -25,11 +25,30 @@ class DjangoEventRepository(EventRepository):
     def code_exists(self, code: str) -> bool:
         return EventORM.objects.filter(code=code, deleted_at__isnull=True).exists()
 
-    def list(self, *, code: str | None = None) -> list[Event]:
-        qs = EventORM.objects.filter(deleted_at__isnull=True)
-        if code:
-            qs = qs.filter(code=code)
-        return [event_orm_to_domain(row) for row in qs.order_by("date")]
+    def list(self, query: EventQuery) -> EventPage:
+        base = EventORM.objects.filter(deleted_at__isnull=True)
+        qs = self._apply_filters(base, query)
+        total = qs.count()
+        rows = qs.order_by("date")[query.offset : query.offset + query.limit]
+        return EventPage(
+            items=[event_orm_to_domain(row) for row in rows],
+            total=total,
+        )
+
+    def _apply_filters(self, qs, query: EventQuery):
+        if query.code:
+            qs = qs.filter(code=query.code)
+        if query.name:
+            qs = qs.filter(name__icontains=query.name)
+        if query.date_from is not None:
+            qs = qs.filter(date__gte=query.date_from)
+        if query.date_to is not None:
+            qs = qs.filter(date__lte=query.date_to)
+        if query.availability == "available":
+            qs = qs.filter(available_tickets__gt=0)
+        elif query.availability == "sold_out":
+            qs = qs.filter(available_tickets=0)
+        return qs
 
     def save(self, event: Event) -> Event:
         EventORM.objects.filter(pk=event.id).update(**event_domain_to_orm(event))

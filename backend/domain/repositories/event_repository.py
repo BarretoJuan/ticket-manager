@@ -1,9 +1,39 @@
 """Event repository port."""
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
 from domain.entities.event import Event
+
+AVAILABLE = "available"
+SOLD_OUT = "sold_out"
+
+
+@dataclass(frozen=True)
+class EventQuery:
+    """Filters + pagination input for listing events.
+
+    ``availability`` accepts ``"available"`` (tickets still available) or
+    ``"sold_out"`` (no tickets left). ``offset``/``limit`` define the page.
+    """
+
+    code: str | None = None
+    name: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+    availability: str | None = None
+    offset: int = 0
+    limit: int = 20
+
+
+@dataclass(frozen=True)
+class EventPage:
+    """A single page of events plus the total number of matches."""
+
+    items: list[Event]
+    total: int
 
 
 class EventRepository(ABC):
@@ -20,8 +50,8 @@ class EventRepository(ABC):
         """True if an event with this code already exists."""
 
     @abstractmethod
-    def list(self, *, code: str | None = None) -> list[Event]:
-        """List live events ordered by date, optionally filtered by code."""
+    def list(self, query: EventQuery) -> EventPage:
+        """List live events matching ``query``, ordered by date, paginated."""
 
     @abstractmethod
     def save(self, event: Event) -> Event:

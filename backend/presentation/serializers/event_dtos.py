@@ -41,3 +41,32 @@ class EventResponseDTO(serializers.Serializer):
     total_capacity = serializers.IntegerField()
     available_tickets = serializers.IntegerField()
     ticket_price = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
+class EventListQueryDTO(serializers.Serializer):
+    """Query params for GET /api/v1/events (filters + page)."""
+
+    code = serializers.CharField(required=False, allow_blank=True)
+    name = serializers.CharField(required=False, allow_blank=True)
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
+    availability = serializers.ChoiceField(
+        choices=["available", "sold_out"], required=False
+    )
+    page = serializers.IntegerField(min_value=1, required=False, default=1)
+
+    def validate(self, attrs):
+        date_from = attrs.get("date_from")
+        date_to = attrs.get("date_to")
+        if date_from and date_to and date_from > date_to:
+            raise serializers.ValidationError("date_from must be <= date_to")
+        return attrs
+
+
+class EventListResponseDTO(serializers.Serializer):
+    """Paginated envelope returned by GET /api/v1/events."""
+
+    count = serializers.IntegerField()
+    next = serializers.URLField(allow_null=True, required=False)
+    previous = serializers.URLField(allow_null=True, required=False)
+    results = EventResponseDTO(many=True)

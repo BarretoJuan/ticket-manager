@@ -32,7 +32,11 @@ from domain.exceptions import (
     WeakPasswordError,
 )
 from domain.repositories.booking_repository import BookingRepository
-from domain.repositories.event_repository import EventRepository
+from domain.repositories.event_repository import (
+    EventPage,
+    EventQuery,
+    EventRepository,
+)
 from domain.repositories.log_repository import LogRepository
 from domain.repositories.user_repository import UserRepository
 from domain.services.password_service import PasswordService
@@ -57,15 +61,24 @@ class FakeEventRepository(EventRepository):
     def code_exists(self, code):
         return any(e.code == code for e in self.events.values())
 
-    def list(self, *, code=None):
-        return sorted(
-            (
-                e
-                for e in self.events.values()
-                if e.deleted_at is None and (code is None or e.code == code)
-            ),
-            key=lambda e: e.date,
-        )
+    def list(self, query: EventQuery = EventQuery()):
+        matches = [
+            e
+            for e in self.events.values()
+            if e.deleted_at is None
+            and (query.code is None or e.code == query.code)
+            and (query.name is None or query.name.lower() in e.name.lower())
+            and (query.date_from is None or e.date >= query.date_from)
+            and (query.date_to is None or e.date <= query.date_to)
+            and (
+                query.availability is None
+                or (query.availability == "available" and e.available_tickets > 0)
+                or (query.availability == "sold_out" and e.available_tickets == 0)
+            )
+        ]
+        matches.sort(key=lambda e: e.date)
+        page = matches[query.offset : query.offset + query.limit]
+        return EventPage(items=page, total=len(matches))
 
     def save(self, event):
         self.events[event.id] = event
@@ -260,8 +273,40 @@ class EventUseCaseTests(unittest.TestCase):
         a = self.create.execute(**new_event_input(code="EVT-2026-ES"))
         self.create.execute(**new_event_input(code="EVT-2026-MX"))
         self.delete.execute(event_id=a.id)
-        codes = [e.code for e in self.list.execute()]
+        codes = [e.code for e in self.list.execute(query=EventQuery()).items]
         self.assertEqual(codes, ["EVT-2026-MX"])
+
+    def test_list_filters_by_name(self):
+        self.create.execute(**new_event_input(code="EVT-2026-ES", name="Rock Festival"))
+        self.create.execute(**new_event_input(code="EVT-2026-MX", name="Jazz Night"))
+        result = self.list.execute(query=EventQuery(name="ROCK"))
+        self.assertEqual([e.code for e in result.items], ["EVT-2026-ES"])
+
+    def test_list_filters_by_availability(self):
+        event = self.create.execute(
+            **new_event_input(code="EVT-2026-ES", total_capacity=10)
+        )
+        self.events.save(event.with_booking(10))  # sell the event out
+        self.create.execute(**new_event_input(code="EVT-2026-MX", total_capacity=10))
+
+        sold = self.list.execute(query=EventQuery(availability="sold_out"))
+        self.assertEqual([e.code for e in sold.items], ["EVT-2026-ES"])
+
+        available = self.list.execute(query=EventQuery(availability="available"))
+        self.assertEqual([e.code for e in available.items], ["EVT-2026-MX"])
+
+    def test_list_paginates_and_reports_total(self):
+        for i in range(25):
+            code = f"EVT-2026-{chr(65 + i % 26)}{chr(65 + i // 26)}"
+            self.create.execute(**new_event_input(code=code))
+
+        first = self.list.execute(query=EventQuery(limit=20))
+        self.assertEqual(len(first.items), 20)
+        self.assertEqual(first.total, 25)
+
+        second = self.list.execute(query=EventQuery(offset=20, limit=20))
+        self.assertEqual(len(second.items), 5)
+        self.assertEqual(second.total, 25)
 
 
 # --------------------------------------------------------------------------- #
