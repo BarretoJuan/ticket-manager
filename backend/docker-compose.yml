@@ -17,6 +17,15 @@ services:
       timeout: 3s
       retries: 12
 
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: ticket_manager_mailhog
+    ports:
+      # SMTP sink the backend sends confirmation e-mails through
+      - "1025:1025"
+      # Web UI to inspect captured e-mails (http://localhost:8025)
+      - "8025:8025"
+
   backend:
     build: .
     container_name: ticket_manager_backend
@@ -31,11 +40,22 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-ticket_password}
       DEBUG: "True"
       ALLOWED_HOSTS: "*"
+      # Route confirmation e-mails to the MailHog sink (empty EMAIL_HOST in
+      # .env would otherwise disable e-mail under the SMTP backend)
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-mailhog}
+      EMAIL_PORT: ${EMAIL_PORT:-1025}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-false}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-no-reply@ticket-manager.local}
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     command: sh -c "python manage.py migrate && python manage.py seed && python manage.py runserver 0.0.0.0:8000"
 
 volumes:

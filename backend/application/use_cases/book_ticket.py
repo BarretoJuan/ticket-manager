@@ -5,16 +5,21 @@ The authoritative capacity check + decrement happen atomically inside
 row-level locking (``SELECT ... FOR UPDATE``) inside a database transaction.
 """
 
+import logging
 from uuid import UUID, uuid4
 
 from application.logging_utils import record_log
+from application.services.booking_notifier import BookingNotifier
 from domain.entities.booking import Booking
+from domain.entities.event import Event
 from domain.entities.log_entry import AuditContext, LogType
 from domain.exceptions import EventNotFoundError, InsufficientTicketsError
 from domain.repositories.booking_repository import BookingRepository
 from domain.repositories.event_repository import EventRepository
 from domain.repositories.log_repository import LogRepository
 from domain.utils import utcnow
+
+logger = logging.getLogger("application")
 
 
 class BookTicket:
@@ -23,10 +28,12 @@ class BookTicket:
         booking_repository: BookingRepository,
         event_repository: EventRepository,
         log_repository: LogRepository | None = None,
+        notifier: BookingNotifier | None = None,
     ) -> None:
         self.booking_repository = booking_repository
         self.event_repository = event_repository
         self.log_repository = log_repository
+        self.notifier = notifier
 
     def execute(
         self,
@@ -92,4 +99,36 @@ class BookTicket:
             event_id=event_id,
             audit=audit,
         )
+        self._send_confirmation(created, event, user_id, audit)
         return created
+
+    def _send_confirmation(
+        self,
+        booking: Booking,
+        event: Event,
+        user_id: UUID,
+        audit: AuditContext | None,
+    ) -> None:
+        """Send the confirmation e-mail; failures must never fail a booking."""
+        if self.notifier is None:
+            return
+        try:
+            self.notifier.send_booking_confirmation(
+                booking=booking, event=event, user_id=user_id
+            )
+        except Exception:
+            logger.exception(
+                "failed to send booking confirmation for booking %s", booking.id
+            )
+            record_log(
+                self.log_repository,
+                log_type=LogType.WARNING,
+                name="booking.email_failed",
+                content=(
+                    f"Confirmation e-mail failed for booking {booking.id} "
+                    f"(event {event.id}, user {user_id})"
+                ),
+                user_id=user_id,
+                event_id=event.id,
+                audit=audit,
+            )

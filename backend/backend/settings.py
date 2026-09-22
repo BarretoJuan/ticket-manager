@@ -229,6 +229,23 @@ LOGGING = {
 
 
 # --------------------------------------------------------------------------- #
+# Email (SMTP) — booking confirmation e-mails
+# --------------------------------------------------------------------------- #
+# The stock SMTP backend without an EMAIL_HOST is treated as "e-mail
+# disabled": DjangoEmailService logs and skips the send, so a booking never
+# fails because of mail configuration. Docker Compose points EMAIL_HOST at
+# the MailHog service for local delivery inspection.
+EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", "") or ""
+EMAIL_PORT = int(env("EMAIL_PORT", "25") or "25")
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", "") or ""
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "") or ""
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)
+# Dev-only default; always override in production.
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "no-reply@ticket-manager.local")
+
+
+# --------------------------------------------------------------------------- #
 # Internationalization / static
 # --------------------------------------------------------------------------- #
 LANGUAGE_CODE = "en-us"

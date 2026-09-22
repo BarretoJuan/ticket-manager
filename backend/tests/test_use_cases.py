@@ -10,6 +10,7 @@ from datetime import timedelta
 from decimal import Decimal
 from uuid import uuid4
 
+from application.services.booking_notifier import QR_CONTENT_ID, BookingNotifier
 from application.use_cases.book_ticket import BookTicket
 from application.use_cases.create_event import CreateEvent
 from application.use_cases.delete_event import DeleteEvent
@@ -20,7 +21,9 @@ from application.use_cases.update_event import UpdateEvent
 
 from domain.entities.booking import Booking
 from domain.entities.event import Event
-from domain.entities.user import Role
+from domain.entities.log_entry import LogType
+from domain.entities.outbound_email import OutboundEmail
+from domain.entities.user import Role, User
 from domain.exceptions import (
     EmailAlreadyExistsError,
     EventCodeAlreadyExistsError,
@@ -40,6 +43,8 @@ from domain.repositories.event_repository import (
 from domain.repositories.log_repository import LogRepository
 from domain.repositories.user_repository import UserRepository
 from domain.services.password_service import PasswordService
+from domain.services.email_service import EmailService
+from domain.services.qr_code_service import QrCodeGenerator
 from domain.utils import utcnow
 
 
@@ -145,6 +150,22 @@ class FakePasswordService(PasswordService):
 
     def verify(self, raw, hashed):
         return hashed == f"hash:{raw}"
+
+
+class FakeEmailService(EmailService):
+    def __init__(self):
+        self.messages: list[OutboundEmail] = []
+        self.raise_on_send = False
+
+    def send(self, message: OutboundEmail) -> None:
+        if self.raise_on_send:
+            raise ConnectionError("SMTP unavailable")
+        self.messages.append(message)
+
+
+class FakeQrCodeService(QrCodeGenerator):
+    def generate_png(self, data: str, *, box_size: int = 8) -> bytes:
+        return f"png:{data}".encode()
 
 
 class FakeLogRepository(LogRepository):
@@ -317,8 +338,24 @@ class BookTicketTests(unittest.TestCase):
         self.events = FakeEventRepository()
         self.bookings = FakeBookingRepository(self.events)
         self.logs = FakeLogRepository()
-        self.book = BookTicket(self.bookings, self.events, self.logs)
         self.user_id = uuid4()
+        self.users = FakeUserRepository()
+        self.users.create(
+            User(
+                id=self.user_id,
+                created_at=utcnow(),
+                updated_at=utcnow(),
+                deleted_at=None,
+                email="buyer@example.com",
+                last_login_at=None,
+                role=Role.USER,
+                password_hash="pbkdf2-unused",
+            )
+        )
+        self.email_service = FakeEmailService()
+        self.qr_service = FakeQrCodeService()
+        self.notifier = BookingNotifier(self.users, self.email_service, self.qr_service)
+        self.book = BookTicket(self.bookings, self.events, self.logs, self.notifier)
         self.event = self.events.create(
             Event(
                 id=uuid4(),
@@ -361,6 +398,52 @@ class BookTicketTests(unittest.TestCase):
     def test_booking_missing_event(self):
         with self.assertRaises(EventNotFoundError):
             self.book.execute(event_id=uuid4(), user_id=self.user_id, quantity=1)
+
+    def test_booking_sends_confirmation_email_with_qr(self):
+        booking = self.book.execute(
+            event_id=self.event.id, user_id=self.user_id, quantity=2
+        )
+        self.assertEqual(len(self.email_service.messages), 1)
+        message = self.email_service.messages[0]
+        self.assertEqual(message.to, "buyer@example.com")
+        self.assertEqual(message.subject, f"Booking confirmed: {self.event.name}")
+        for field in (
+            self.event.name,
+            self.event.code,
+            self.event.date.strftime("%B %d, %Y"),
+            "buyer@example.com",
+            "2",
+            "Thank you",
+        ):
+            self.assertIn(field, message.text_body)
+            self.assertIn(field, message.html_body)
+        self.assertIn(f"cid:{QR_CONTENT_ID}", message.html_body)
+
+        self.assertEqual(len(message.attachments), 1)
+        attachment = message.attachments[0]
+        self.assertEqual(attachment.name, f"booking-{booking.id}.png")
+        self.assertEqual(attachment.content_type, "image/png")
+        self.assertTrue(attachment.inline)
+        self.assertEqual(attachment.cid, QR_CONTENT_ID)
+        # The QR encodes the raw booking id (str(booking.id)).
+        self.assertEqual(attachment.content, f"png:{booking.id}".encode())
+
+    def test_email_failure_does_not_fail_booking(self):
+        self.email_service.raise_on_send = True
+        booking = self.book.execute(
+            event_id=self.event.id, user_id=self.user_id, quantity=1
+        )
+        self.assertEqual(booking.ticket_quantity, 1)
+        self.assertEqual(
+            [e.name for e in self.logs.entries],
+            ["booking.created", "booking.email_failed"],
+        )
+        self.assertEqual(self.logs.entries[-1].type, LogType.WARNING)
+
+    def test_booking_without_notifier_skips_email(self):
+        book = BookTicket(self.bookings, self.events, self.logs)
+        book.execute(event_id=self.event.id, user_id=self.user_id, quantity=1)
+        self.assertEqual(self.email_service.messages, [])
 
 
 if __name__ == "__main__":

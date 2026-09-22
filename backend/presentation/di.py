@@ -3,6 +3,7 @@
 Use cases receive their repository implementations through their constructors.
 """
 
+from application.services.booking_notifier import BookingNotifier
 from application.use_cases.book_ticket import BookTicket
 from application.use_cases.create_event import CreateEvent
 from application.use_cases.delete_event import DeleteEvent
@@ -18,6 +19,8 @@ from infrastructure.repositories.django_event_repository import DjangoEventRepos
 from infrastructure.repositories.django_log_repository import DjangoLogRepository
 from infrastructure.repositories.django_password_service import DjangoPasswordService
 from infrastructure.repositories.django_user_repository import DjangoUserRepository
+from infrastructure.services.django_email_service import DjangoEmailService
+from infrastructure.services.pillow_qr_service import PillowQrCodeGenerator
 
 # --------------------------------------------------------------------------- #
 # Repository singletons
@@ -27,6 +30,11 @@ _booking_repository = DjangoBookingRepository()
 _user_repository = DjangoUserRepository()
 _log_repository = DjangoLogRepository()
 _password_service = DjangoPasswordService()
+_email_service = DjangoEmailService()
+_qr_code_generator = PillowQrCodeGenerator()
+_booking_notifier = BookingNotifier(
+    _user_repository, _email_service, _qr_code_generator
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -57,7 +65,12 @@ def get_list_events_use_case() -> ListEvents:
 
 
 def get_book_ticket_use_case() -> BookTicket:
-    return BookTicket(_booking_repository, _event_repository, _log_repository)
+    return BookTicket(
+        _booking_repository,
+        _event_repository,
+        _log_repository,
+        _booking_notifier,
+    )
 
 
 __all__ = [

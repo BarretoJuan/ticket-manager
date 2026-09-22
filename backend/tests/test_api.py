@@ -4,7 +4,8 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.core.cache import cache
-from django.test import TestCase
+from django.core import mail
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from domain.utils import utcnow
@@ -106,6 +107,7 @@ class AuthApiTests(TestCase):
         self.assertEqual(statuses[10], 429)
 
 
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class EventAndBookingApiTests(TestCase):
     def setUp(self):
         cache.clear()
@@ -383,3 +385,105 @@ class HealthApiTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data["status"], "ok")
         self.assertEqual(resp.data["database"], "connected")
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class BookingEmailApiTests(TestCase):
+    """Booking → confirmation e-mail (event details + QR attachment)."""
+
+    def setUp(self):
+        cache.clear()
+        mail.outbox.clear()
+        self.user_client = APIClient()
+        self.user_token = john_token(self.user_client, email="buyer@example.com")
+        self.user_client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")
+        self.admin = UserORM.objects.create_user(
+            email="admin@example.com", password=PASSWORD, role="ADMIN"
+        )
+        admin_login = APIClient().post(
+            "/api/v1/login",
+            {"email": "admin@example.com", "password": PASSWORD},
+            format="json",
+        )
+        self.admin_client = APIClient()
+        self.admin_client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {admin_login.data['access']}"
+        )
+
+    def test_booking_sends_confirmation_email_with_qr_attachment(self):
+        event = self.admin_client.post(
+            "/api/v1/events",
+            {
+                "name": "Tech Conference",
+                "code": "EVT-2030-US",
+                "date": "2030-05-10T10:00:00Z",
+                "total_capacity": 5,
+                "ticket_price": "49.90",
+            },
+            format="json",
+        )
+        event_id = event.data["id"]
+
+        booking = self.user_client.post(
+            f"/api/v1/events/{event_id}/book",
+            {"ticket_quantity": 2},
+            format="json",
+        )
+        self.assertEqual(booking.status_code, 201)
+        self.assertEqual(booking.data["ticket_quantity"], 2)
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["buyer@example.com"])
+        self.assertEqual(message.subject, "Booking confirmed: Tech Conference")
+        for field in (
+            "Tech Conference",
+            "EVT-2030-US",
+            "May 10, 2030",
+            "buyer@example.com",
+            "2",
+            "Thank you",
+        ):
+            self.assertIn(field, message.body)
+
+        html = next(
+            content for content, kind in message.alternatives if kind == "text/html"
+        )
+        self.assertIn("<h1", html)
+        self.assertIn("Tech Conference", html)
+        self.assertIn("cid:booking-qr", html)
+        self.assertIn("Thank you", html)
+
+        self.assertEqual(len(message.attachments), 1)
+        attachment = message.attachments[0]
+        self.assertEqual(attachment.get_content_type(), "image/png")
+        # MIMEImage stores the payload base64-encoded; decode for the raw PNG.
+        self.assertTrue(
+            attachment.get_payload(decode=True).startswith(b"\x89PNG\r\n\x1a\n")
+        )
+
+    def test_failed_email_does_not_fail_booking(self):
+        event = self.admin_client.post(
+            "/api/v1/events",
+            {
+                "name": "Salsa Night",
+                "code": "EVT-2030-MX",
+                "date": "2030-06-01T20:00:00Z",
+                "total_capacity": 5,
+                "ticket_price": "25.00",
+            },
+            format="json",
+        )
+        event_id = event.data["id"]
+
+        # A mail backend that fails to import simulates SMTP being down: the
+        # booking must still be created (201) and no e-mail sent.
+        with self.settings(EMAIL_BACKEND="tests.nonexistent_mail_backend"):
+            booking = self.user_client.post(
+                f"/api/v1/events/{event_id}/book",
+                {"ticket_quantity": 1},
+                format="json",
+            )
+        self.assertEqual(booking.status_code, 201)
+        self.assertEqual(booking.data["ticket_quantity"], 1)
+        self.assertEqual(mail.outbox, [])

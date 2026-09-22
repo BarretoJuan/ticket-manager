@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from infrastructure.orm.models import BookingORM, EventORM, UserORM, UserRole
 
@@ -22,6 +22,9 @@ def call_seed():
         call_command("seed")
 
 
+# Seeded bookings trigger the confirmation e-mail through the real DI graph;
+# isolate it with the local-memory backend so tests never attempt SMTP.
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class SeedCommandTests(TestCase):
     def test_seed_creates_demo_data(self):
         call_seed()

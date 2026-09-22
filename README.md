@@ -7,17 +7,19 @@
 ```
 backend/
 ├── domain/                     # pure business logic
-│   ├── entities/               # Event, Booking, User, LogEntry (dataclasses + validation)
+│   ├── entities/               # Event, Booking, User, LogEntry, OutboundEmail (dataclasses + validation)
 │   ├── repositories/           # port interfaces (EventRepository, BookingRepository, ...)
-│   ├── services/               # password hashing port
+│   ├── services/               # ports (password hashing, email, QR code generation)
 │   ├── exceptions.py           # domain exception hierarchy
 │   └── utils.py
 ├── application/
 │   ├── use_cases/              # Register/Login/Create/List/Update/Delete/Book...
+│   ├── services/               # BookingNotifier (composes confirmation e-mails)
 │   └── logging_utils.py
 ├── infrastructure/
 │   ├── orm/                    # Django app "ticketing": models, auth backends, migrations
 │   ├── repositories/           # Django implementations of the domain ports + mappers
+│   ├── services/               # DjangoEmailService (SMTP), PillowQrCodeGenerator
 │   └── db.py
 ├── presentation/
 │   ├── views/                  # thin controllers (APIView per resource)
@@ -109,9 +111,12 @@ docker compose up --build
 ```
 
 - `db` — PostgreSQL 18 container, health-gated.
+- `mailhog` — SMTP sink for booking confirmation e-mails (web UI at **http://localhost:8025**,
+  SMTP on `mailhog:1025` inside the compose network, host port `1025`).
 - `backend` — runs `migrate`, `seed`, then `runserver` on port **8000**, with `DB_HOST=db` and
   credentials from `.env`/compose defaults. Seeding is idempotent; disable it with
-  `SEED_ENABLED=false`.
+  `SEED_ENABLED=false`. Confirmation e-mails are sent through MailHog (override
+  `EMAIL_HOST`/`EMAIL_PORT` in `.env` to route them to a real provider).
 
 Compose variables can be overridden either in `.env` (e.g. `POSTGRES_PASSWORD=...`) or via the
 `POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD` environment defaults.
@@ -135,6 +140,17 @@ audit logging apply. Configuration is via `SEED_*` env vars (see below).
 
 ---
 
+## Email notifications
+
+A successful booking triggers a **confirmation e-mail** to the buyer with:
+
+- event name, code and date (UTC),
+- the buyer's e-mail address and the number of tickets,
+- a thank-you message,
+- a **QR code** (PNG image) encoding the booking identifier (`str(booking.id)`).
+
+---
+
 ## Environment variables (`.env`)
 
 | Variable | Default | Purpose |
@@ -152,6 +168,12 @@ audit logging apply. Configuration is via `SEED_*` env vars (see below).
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `admin@example.com` / `Admin12345!` | Admin account created by seeding |
 | `SEED_DEMO_USERS` | `alice@example.com,bob@example.com` | Demo user accounts (comma-separated) |
 | `SEED_BOOKINGS` | `true` | Create a few bookings on freshly seeded events |
+| `EMAIL_BACKEND` | `django.core.mail.backends.smtp.EmailBackend` | Django mail backend (set `locmem`/`console` for tests/debug) |
+| `EMAIL_HOST` | *(empty)* | SMTP server; empty + SMTP backend ⇒ e-mails disabled |
+| `EMAIL_PORT` | `25` | SMTP port (Docker overrides to `1025` for MailHog) |
+| `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | *(empty)* | SMTP credentials when the server requires auth |
+| `EMAIL_USE_TLS` | `false` | Start TLS for the SMTP connection |
+| `DEFAULT_FROM_EMAIL` | `no-reply@ticket-manager.local` | Sender address for confirmation e-mails |
 
 
 ## Tests
