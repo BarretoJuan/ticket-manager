@@ -63,6 +63,17 @@ function parseErrorPayload(data: unknown): {
   code?: string | null
   fieldErrors?: Record<string, string[]>
 } {
+  if (Array.isArray(data)) {
+    // DRF renders non-serializer ValidationErrors as a top-level JSON
+    // array, e.g. ["total_capacity cannot be lower than the tickets
+    // already booked (2)"]. Collect the string messages.
+    const messages = data.filter(
+      (item): item is string => typeof item === 'string' && item.length > 0,
+    )
+    if (messages.length > 0) {
+      return { message: messages.join(' ') }
+    }
+  }
   if (typeof data === 'string' && data.length > 0) {
     return { message: data }
   }
