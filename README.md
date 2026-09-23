@@ -159,6 +159,25 @@ Design notes:
   once), and all of them are kept; only byte-identical rows are collapsed. Every run is
   recorded in `sat_history` with which admin triggered it.
 
+## Frontend
+
+SPA built with **React 19 + TypeScript (strict) + Vite 8 + Tailwind CSS 4**.
+Full setup, routing table, conventions and E2E smoke notes live in
+[`frontend/README.md`](frontend/README.md).
+
+```bash
+cd frontend
+npm install
+npm run dev      # http://localhost:5173 — /api/* is proxied to localhost:8000
+npm run lint && npm run format:check && npm run build
+```
+
+Register always creates a `USER` account (admins are seeded, never
+self-registered). The UI routes: `/` (USER catalog + booking), `/login`,
+`/admin` (events CRUD) and `/admin/sat` (SAT sync).
+
+---
+
 ## Local development setup (macOS / Linux)
 ```bash
 cd backend
@@ -279,6 +298,7 @@ A successful booking triggers a **confirmation e-mail** to the buyer with:
 | `SAT_MAX_FILE_BYTES` | `536870912` (512 MB) | Safety cap on the downloaded CSV size |
 | `SAT_SYNC_BATCH_SIZE` | `5000` | Rows per import batch (memory stays flat)
 
+---
 
 ## Tests
 

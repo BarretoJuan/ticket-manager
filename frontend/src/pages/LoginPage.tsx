@@ -15,11 +15,6 @@ import { cn } from '../utils/cn'
 
 type Mode = 'login' | 'register'
 
-const DEMO_ACCOUNTS = [
-  { label: 'Admin', email: 'admin@example.com', password: 'Admin12345!' },
-  { label: 'User', email: 'alice@example.com', password: 'Demo12345!' },
-]
-
 export function LoginPage() {
   const { session, login, register } = useAuth()
   const toast = useToast()
@@ -217,27 +212,6 @@ export function LoginPage() {
               {mode === 'login' ? 'Sign in' : 'Create account'}
             </Button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="border-navy/15 bg-offwhite mt-6 rounded-xl border p-4">
-            <p className="text-muted text-xs font-semibold tracking-wide uppercase">
-              Demo accounts
-            </p>
-            <ul className="text-royal mt-2 space-y-1.5 text-xs">
-              {DEMO_ACCOUNTS.map((account) => (
-                <li
-                  key={account.email}
-                  className="flex flex-wrap gap-x-2 gap-y-0.5"
-                >
-                  <span className="font-semibold">{account.label}:</span>
-                  <span>{account.email}</span>
-                  <span className="text-muted font-mono">
-                    {account.password}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
         </div>
       </main>
     </div>
