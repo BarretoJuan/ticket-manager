@@ -1,4 +1,4 @@
-# Ticket Manager — Backend
+# Ticket Manager
  **Django 6.1 + Django REST Framework 3.18 + PostgreSQL 18**,
 ---
 
@@ -30,8 +30,16 @@ backend/
 │   └── urls.py
 ├── tests/                      # domain, use cases, API, booking race, SAT sync
 ├── manage.py, requirements.txt
-├── Dockerfile, docker-compose.yml, docker/postgres/Dockerfile
+├── Dockerfile, docker/postgres/Dockerfile
 └── .env.example
+
+frontend/                       # Vite 8 + React 19 + TypeScript + Tailwind CSS
+├── src/                        # components/pages (App, main)
+├── vite.config.ts              # /api -> backend dev proxy
+├── prettier.config.js, eslint.config.js
+└── Dockerfile, .dockerignore
+
+docker-compose.yml              # single command: runs db + mailhog + backend + frontend
 ```
 
 ## API
@@ -188,11 +196,10 @@ Swagger UI: http://localhost:8000/api/v1/docs/
 
 ---
 
-## Docker setup
+## Docker setup — run the whole project
 
 ```bash
-cd backend
-cp .env.example .env    # required by docker-compose (backend service mounts it)
+cp backend/.env.example backend/.env   # required by docker-compose (backend service mounts it)
 docker compose up --build
 ```
 
@@ -203,6 +210,11 @@ docker compose up --build
   credentials from `.env`/compose defaults. Seeding is idempotent; disable it with
   `SEED_ENABLED=false`. Confirmation e-mails are sent through MailHog (override
   `EMAIL_HOST`/`EMAIL_PORT` in `.env` to route them to a real provider).
+- `frontend` — Vite dev server with HMR on port **5173** (source-tree mount, as if you ran
+  `npm run dev` locally). Browser calls to `/api/*` on `http://localhost:5173` are proxied to
+  the backend service by the Vite dev server, so the API base URL is just `/api/v1` (no CORS
+  involved). The proxy target comes from `VITE_BACKEND_PROXY` (defaults to
+  `http://localhost:8000` for standalone `npm run dev` outside Docker).
 
 Compose variables can be overridden either in `.env` (e.g. `POSTGRES_PASSWORD=...`) or via the
 `POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD` environment defaults.

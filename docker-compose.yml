@@ -1,6 +1,6 @@
 services:
   db:
-    build: ./docker/postgres
+    build: ./backend/docker/postgres
     container_name: ticket_manager_db
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ticket_manager}
@@ -27,10 +27,10 @@ services:
       - "8025:8025"
 
   backend:
-    build: .
+    build: ./backend
     container_name: ticket_manager_backend
     env_file:
-      - .env
+      - ./backend/.env
     environment:
       # Point the backend at the compose database service
       DB_HOST: db
@@ -57,6 +57,23 @@ services:
       mailhog:
         condition: service_started
     command: sh -c "python manage.py migrate && python manage.py seed && python manage.py runserver 0.0.0.0:8000"
+
+  frontend:
+    build: ./frontend
+    container_name: ticket_manager_frontend
+    environment:
+      # Browser requests to /api/* on the Vite origin are proxied to this
+      # address; local (non-Docker) runs default to http://localhost:8000.
+      VITE_BACKEND_PROXY: http://backend:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      # Live-reload: mount the source tree read-write, but keep the container's
+      # Linux node_modules (from `npm ci` at build time) via an anonymous volume.
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
 
 volumes:
   pgdata:
