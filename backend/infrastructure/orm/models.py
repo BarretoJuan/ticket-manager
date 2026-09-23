@@ -130,3 +130,69 @@ class LogORM(models.Model):
 
     class Meta:
         db_table = "logs"
+
+
+class SatSyncStatus(models.TextChoices):
+    PROCESSING = "processing", "Processing"
+    COMPLETED = "completed", "Completed"
+    ERROR = "error", "Error"
+
+
+class SatCanceladoORM(models.Model):
+    """Art. 69 CFF "Cancelados" rows.
+
+    ``rfc`` is not unique: the same tax-payer can appear in several distinct
+    rows (cancelled more than once, at different dates/amounts). Rows are
+    de-duplicated by ``row_hash`` (sha256 of the canonical row content) —
+    identical rows already stored are skipped on import.
+    """
+
+    id = models.BigAutoField(primary_key=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    rfc = models.CharField(max_length=50, db_index=True)
+    row_hash = models.CharField(max_length=64, unique=True)
+    razon_social = models.TextField()
+    tipo_persona = models.CharField(max_length=255, null=True, blank=True)
+    supuesto = models.TextField()
+    fecha_de_cancelacion = models.DateField()
+    monto = models.DecimalField(max_digits=20, decimal_places=2)
+    fecha_de_publicacion = models.DateField()
+    entidad_federativa = models.CharField(max_length=255, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.rfc} ({self.razon_social})"
+
+    class Meta:
+        db_table = "sat_cancelados"
+
+
+class SatHistoryORM(models.Model):
+    """One SAT sync run: processing / completed / error + stats."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+    user = models.ForeignKey(
+        UserORM,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="sat_history",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=SatSyncStatus.choices,
+        default=SatSyncStatus.PROCESSING,
+    )
+    file_hash = models.CharField(max_length=64, null=True, blank=True, db_index=True)
+    processing_time = models.FloatField(null=True, blank=True)
+    record_number = models.IntegerField(default=0)
+    omitted_number = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"SatHistory {self.id} ({self.status})"
+
+    class Meta:
+        db_table = "sat_history"
+        ordering = ["-started_at"]

@@ -3,9 +3,17 @@
 from domain.entities.booking import Booking
 from domain.entities.event import Event
 from domain.entities.log_entry import LogEntry
+from domain.entities.sat_cancelado import SatCancelado, sat_cancelado_row_hash
+from domain.entities.sat_history import SatHistory
 from domain.entities.user import User
 
-from infrastructure.orm.models import BookingORM, EventORM, LogORM, UserORM
+from infrastructure.orm.models import (
+    BookingORM,
+    EventORM,
+    LogORM,
+    SatHistoryORM,
+    UserORM,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -101,4 +109,35 @@ def log_orm_to_domain(row: LogORM) -> LogEntry:
         stack_trace=row.stack_trace,
         user_id=row.user_id,
         event_id=row.event_id,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# SAT sync
+# --------------------------------------------------------------------------- #
+def sat_cancelado_domain_to_orm(record: SatCancelado) -> dict:
+    return {
+        "rfc": record.rfc,
+        "razon_social": record.razon_social,
+        "tipo_persona": record.tipo_persona or None,
+        "supuesto": record.supuesto,
+        "fecha_de_cancelacion": record.fecha_de_cancelacion,
+        "monto": record.monto,
+        "fecha_de_publicacion": record.fecha_de_publicacion,
+        "entidad_federativa": record.entidad_federativa or None,
+        "row_hash": sat_cancelado_row_hash(record),
+    }
+
+
+def sat_history_orm_to_domain(row: SatHistoryORM) -> SatHistory:
+    return SatHistory(
+        id=row.id,
+        started_at=row.started_at,
+        completed_at=row.completed_at,
+        user_id=row.user_id,
+        status=row.status,
+        file_hash=row.file_hash,
+        processing_time=row.processing_time,
+        record_number=row.record_number,
+        omitted_number=row.omitted_number,
     )

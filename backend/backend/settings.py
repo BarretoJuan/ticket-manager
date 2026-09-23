@@ -246,6 +246,20 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "no-reply@ticket-manager.local")
 
 
 # --------------------------------------------------------------------------- #
+# SAT open-data sync (art. 69 CFF "Cancelados")
+# --------------------------------------------------------------------------- #
+SAT_SYNC_COOLDOWN_MINUTES = int(env("SAT_SYNC_COOLDOWN_MINUTES", "30") or 30)
+SAT_PAGE_URL = env(
+    "SAT_PAGE_URL",
+    "https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html",
+)
+SAT_LINK_TEXT = env("SAT_LINK_TEXT", "Cancelados")
+SAT_HTTP_TIMEOUT_SECONDS = int(env("SAT_HTTP_TIMEOUT_SECONDS", "60") or 60)
+SAT_MAX_FILE_BYTES = int(env("SAT_MAX_FILE_BYTES", str(512 * 1024 * 1024)) or 0)
+SAT_SYNC_BATCH_SIZE = int(env("SAT_SYNC_BATCH_SIZE", "5000") or 5000)
+
+
+# --------------------------------------------------------------------------- #
 # Internationalization / static
 # --------------------------------------------------------------------------- #
 LANGUAGE_CODE = "en-us"

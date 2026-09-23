@@ -7,28 +7,28 @@
 ```
 backend/
 ├── domain/                     # pure business logic
-│   ├── entities/               # Event, Booking, User, LogEntry, OutboundEmail (dataclasses + validation)
-│   ├── repositories/           # port interfaces (EventRepository, BookingRepository, ...)
-│   ├── services/               # ports (password hashing, email, QR code generation)
-│   ├── exceptions.py           # domain exception hierarchy
+│   ├── entities/               # Event, Booking, User, LogEntry, OutboundEmail, SatCancelado, SatHistory (dataclasses + validation)
+│   ├── repositories/           # port interfaces (EventRepository, BookingRepository, SatRepository, ...)
+│   ├── services/               # ports (password hashing, email, QR code generation, SAT data download)
+│   ├── exceptions.py           # domain exception hierarchy (incl. SatSyncError / SatDownloadError / SatParseError)
 │   └── utils.py
 ├── application/
-│   ├── use_cases/              # Register/Login/Create/List/Update/Delete/Book...
-│   ├── services/               # BookingNotifier (composes confirmation e-mails)
+│   ├── use_cases/              # Register/Login/Create/List/Update/Delete/Book/SatSync/SatListHistory...
+│   ├── services/               # BookingNotifier (composes confirmation e-mails), SatSyncRunner (bg thread)
 │   └── logging_utils.py
 ├── infrastructure/
-│   ├── orm/                    # Django app "ticketing": models, auth backends, migrations
-│   ├── repositories/           # Django implementations of the domain ports + mappers
-│   ├── services/               # DjangoEmailService (SMTP), PillowQrCodeGenerator
+│   ├── orm/                    # Django app "ticketing": models, auth backends, migrations (sat_cancelados, sat_history)
+│   ├── repositories/           # Django implementations of the domain ports + mappers (incl. DjangoSatRepository)
+│   ├── services/               # DjangoEmailService (SMTP), PillowQrCodeGenerator, HttpSatDataService (SAT scraper)
 │   └── db.py
 ├── presentation/
-│   ├── views/                  # thin controllers (APIView per resource)
+│   ├── views/                  # thin controllers (APIView per resource, incl. SAT sync views)
 │   ├── serializers/            # request/response DTOs
 │   ├── di.py                   # composition root (wires use cases to infra)
 │   ├── errors.py               # domain error → HTTP mapping
 │   ├── permissions.py, middleware.py, spectacular_extension.py
 │   └── urls.py
-├── tests/                      # domain, use cases, API, booking race
+├── tests/                      # domain, use cases, API, booking race, SAT sync
 ├── manage.py, requirements.txt
 ├── Dockerfile, docker-compose.yml, docker/postgres/Dockerfile
 └── .env.example
@@ -64,6 +64,92 @@ Paginated response envelope (`next`/`previous` repeat the current filters):
   "results": [ { "id": "...", "name": "Tech Conference", "date": "2027-06-15T09:00:00Z", "...": "..." } ]
 }
 ```
+
+### SAT "Cancelados" sync (art. 69 CFF open data) — admin only
+
+These endpoints manage the periodic import of SAT's published list of "Cancelados"
+(tax-payers with cancelled fiscal status). The sync is **asynchronous**: the POST returns
+immediately and the heavy work (scrape → stream-download → import ~185k rows) runs on a
+background thread. It is fully isolated from the Events/Booking code.
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/sat/sync` | `POST` | Start a sync. `?force=true` bypasses the cooldown window (default 30 min). Returns `202` when started; `200` + `status=skipped` when the last successful sync is still inside the cooldown; `409` when another sync is already running. |
+| `/api/v1/sat/sync/{history_id}` | `GET` | Poll the status of a run: `processing` / `completed` / `error`, plus stats (rows imported/omitted, processing time, file hash). |
+| `/api/v1/sat/history` | `GET` | List the last processed files — **20 per page**, newest first, `count/next/previous/results` envelope. |
+
+```bash
+# start a sync (admins only)
+curl -X POST http://localhost:8000/api/v1/sat/sync -H "Authorization: Bearer $TOKEN"
+# => 202 {"history_id": "...", "status": "processing", "started_at": "...", "force": false}
+
+# poll it
+curl http://localhost:8000/api/v1/sat/sync/<history_id> -H "Authorization: Bearer $TOKEN"
+# => {"id": "...", "status": "completed", "record_number": 185000, "omitted_number": 12, ...}
+```
+
+### Downloaded file format
+
+The scraper finds the "Cancelados" link on the SAT page each run and downloads a single
+CSV file (≈185k rows / ≈20 MB at the time of writing; encoded in UTF-8 when decodable,
+otherwise latin-1) with thousands-separated, comma-quoted amounts:
+
+```csv
+RFC,RAZON SOCIAL,TIPO PERSONA,SUPUESTO,FECHA DE CANCELACION,MONTO ,FECHA DE PUBLICACION,ENTIDAD FEDERATIVA
+AAA010101AAA,"EMPRESA UNO SA DE CV",M,CANCELADOS,28/05/2019,"1,390,273",20/08/2019,BAJA CALIFORNIA SUR
+```
+
+| CSV column | Format |
+|---|---|
+| `RFC` | 12/13-char tax-payer ID (`AAA010101AAA`, `XAXX010101000`…) |
+| `RAZON SOCIAL` | entity/business name — may contain multiple spaces |
+| `TIPO PERSONA` | `M` (empresa/legal) or `F` (persona física) |
+| `SUPUESTO` | legal supposition under art. 69 CFF (e.g. `CANCELADOS POR INCOSTEABILIDAD`) |
+| `FECHA DE CANCELACION` | cancellation date, `dd/mm/yyyy` |
+| `MONTO` | amount of the cancelled operations, integer or decimal with `,` thousands separators (the header itself has a trailing space) |
+| `FECHA DE PUBLICACION` | publication date, `dd/mm/yyyy` |
+| `ENTIDAD FEDERATIVA` | state (e.g. `CIUDAD DE MEXICO`) |
+
+### Mapping to the database
+
+Each valid row becomes one `sat_cancelados` record:
+
+| CSV column | `sat_cancelados` field | Type |
+|---|---|---|
+| `RFC` | `rfc` | `varchar(50)`, uppercased, indexed (not unique) |
+| `RAZON SOCIAL` | `razon_social` | `text` |
+| `TIPO PERSONA` | `tipo_persona` | `varchar(255)`, nullable |
+| `SUPUESTO` | `supuesto` | `text` |
+| `FECHA DE CANCELACION` | `fecha_de_cancelacion` | `date` |
+| `MONTO` | `monto` | `numeric(20,2)` |
+| `FECHA DE PUBLICACION` | `fecha_de_publicacion` | `date` |
+| `ENTIDAD FEDERATIVA` | `entidad_federativa` | `varchar(255)`, nullable |
+| — (computed) | `row_hash` | `varchar(64)`, sha256 of the canonicalized row, unique — drives de-duplication |
+| — (bookkeeping) | `id`, `created_at`, `updated_at` | identity + timestamps |
+
+Every run is recorded in `sat_history`: `id`, `started_at`, `completed_at`, which admin
+triggered it (`user_id`), `status` (`processing`/`completed`/`error`), `file_hash` (sha256
+of the whole file, used to short-circuit re-runs), `processing_time`, `record_number`
+(rows inserted) and `omitted_number` (rows skipped — invalid or already stored).
+
+Design notes:
+
+- **Cooldown + dedupe**: after a successful download, new runs are skipped for
+  `SAT_SYNC_COOLDOWN_MINUTES` (default 30) unless `?force=true`. A file already imported
+  (identical sha256) short-circuits to a `completed` run with `record_number: 0` — nothing
+  is re-imported. Rows are additionally de-duplicated by their full content hash: a row
+  identical to one already stored is skipped and counted in `omitted_number`.
+- **Download safety**: the CSV is streamed to a temp file (never fully in RAM) while its
+  sha256 is computed, capped by `SAT_MAX_FILE_BYTES`; the download link is scraped from the
+  SAT page each run (it may change over time). Fields/dates/amounts that don't parse are
+  counted in `omitted_number` instead of failing the run; a structurally unrecognized file
+  records an `error` run instead of crashing.
+- **Concurrency**: a PostgreSQL advisory xact lock plus a `processing` history row guarantee
+  a single concurrent run — safe across threads and multiple WSGI workers.
+- **Data**: rows are stored into `sat_cancelados` de-duplicated by row content hash — the
+  same RFC can appear in several *distinct* rows (a tax-payer can be cancelled more than
+  once), and all of them are kept; only byte-identical rows are collapsed. Every run is
+  recorded in `sat_history` with which admin triggered it.
 
 ## Local development setup (macOS / Linux)
 ```bash
@@ -174,6 +260,12 @@ A successful booking triggers a **confirmation e-mail** to the buyer with:
 | `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | *(empty)* | SMTP credentials when the server requires auth |
 | `EMAIL_USE_TLS` | `false` | Start TLS for the SMTP connection |
 | `DEFAULT_FROM_EMAIL` | `no-reply@ticket-manager.local` | Sender address for confirmation e-mails |
+| `SAT_SYNC_COOLDOWN_MINUTES` | `30` | Minutes after a successful sync during which new runs are skipped (bypass with `?force=true`) |
+| `SAT_PAGE_URL` | `https://www.sat.gob.mx/minisitio/DatosAbiertos/contribuyentes_publicados.html` | SAT page scraped for the "Cancelados" link |
+| `SAT_LINK_TEXT` | `Cancelados` | Anchor text used to find the download link on the SAT page |
+| `SAT_HTTP_TIMEOUT_SECONDS` | `60` | Timeout for the SAT page/CSV HTTP calls |
+| `SAT_MAX_FILE_BYTES` | `536870912` (512 MB) | Safety cap on the downloaded CSV size |
+| `SAT_SYNC_BATCH_SIZE` | `5000` | Rows per import batch (memory stays flat)
 
 
 ## Tests
@@ -187,6 +279,8 @@ python manage.py test tests -v 2
 - `test_api.py` — full HTTP API via DRF `APIClient` (register/login/authz/CRUD/booking/health).
 - `test_booking_race.py` — **PostgreSQL concurrency test** (needs a running Postgres; uses `TransactionTestCase`).
 - `test_seed.py` — `seed` command: creates demo data, is idempotent, honours `SEED_ENABLED`/`SEED_BOOKINGS`.
+- `test_sat_sync.py` — SAT use-case tests with fakes (cooldown, concurrency, CSV parsing, hash dedupe, error handling; no DB).
+- `test_sat_api.py` — SAT endpoints against PostgreSQL with the downloader mocked (202 → status poll, cooldown/force, `409`, paginated history list).
 
 ---
 

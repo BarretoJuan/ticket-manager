@@ -68,6 +68,10 @@ class LogValidationError(EntityValidationError):
     pass
 
 
+class SatValidationError(EntityValidationError):
+    pass
+
+
 # --------------------------------------------------------------------------- #
 # Not found (404)
 # --------------------------------------------------------------------------- #
@@ -84,6 +88,10 @@ class UserNotFoundError(NotFoundError):
 
 
 class BookingNotFoundError(NotFoundError):
+    pass
+
+
+class SatHistoryNotFoundError(NotFoundError):
     pass
 
 
@@ -126,4 +134,19 @@ class AuthorizationError(DomainError):
 
 
 class NotAdminError(AuthorizationError):
+    pass
+
+
+# --------------------------------------------------------------------------- #
+# SAT sync (art. 69 CFF "Cancelados" open data)
+# --------------------------------------------------------------------------- #
+class SatSyncError(DomainError):
+    pass
+
+
+class SatDownloadError(SatSyncError):
+    pass
+
+
+class SatParseError(SatSyncError):
     pass
